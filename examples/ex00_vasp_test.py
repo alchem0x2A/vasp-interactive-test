@@ -5,7 +5,7 @@ import os
 import sys
 import subprocess
 import tempfile
-from ase.build import molecule, bulk
+from ase.build import molecule
 from ase.io import read
 from vasp_interactive import VaspInteractive
 from vasp_interactive.utils import time_limit
@@ -94,7 +94,7 @@ def demo_test():
             try:
                 # In some cases the vasp binary spin up can take longer
                 with time_limit(30):
-                    calc._run(atoms, out=out, require_cell_stdin=False)
+                    calc._run(atoms, out=out)
             except Exception as e:
                 print("Running VASP encountered problem ", e)
                 print(traceback.format_exc(limit=2))
@@ -174,7 +174,7 @@ def demo_test():
             (
                 "VaspInteractive can read from raw output but OUTCAR is incomplete. "
                 "Only the energy and forces are read in this case. "
-                "Please refer to https://github.com/ulissigroup/vasp-interactive#compatibility-test-fails for details"
+                "Please refer to the README for details"
             ),
             color="WARNING",
         )
@@ -190,103 +190,16 @@ def demo_test():
         )
         status = "partial pass"
     else:
-        cprint("All basic test pass!", color="OKGREEN")
+        cprint("All test pass! Enjoy coding.", color="OKGREEN")
         status = "all pass"
 
     # Output the total status
     print("#" * 80)
-    print(f"Basic Tests: {status}")
+    print(f"Test result: {status}")
     print("#" * 80)
-
-    # Should we do extra test?
-    if status in ("minimal support", "partial pass", "all pass"):
-        return True
-    else:
-        return False
-
-
-def demo_test_extra():
-    """Use low-level commands to execute VASP on a simple fcc Al structure
-    to check whether cell input / stress is supported. Only check if stdin cell input is supported
-    """
-    cprint(
-        "Running extra test example for lattice change compatibility", color="HEADER"
-    )
-    atoms = bulk("Al")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        calc = VaspInteractive(
-            nsw=2,
-            istart=0,
-            xc="pbe",
-            directory=tmpdir,
-            # directory="extra",
-        )
-        # Low level calculator interfacing
-
-        with calc._txt_outstream() as out:
-            try:
-                # In some cases the vasp binary spin up can take longer
-                with time_limit(60):
-                    calc._run(atoms, out=out, require_cell_stdin=True)
-                    calc.steps += 1
-                    atoms.rattle(0.005)
-                    calc._run(atoms, out=out, require_cell_stdin=True)
-            except Exception as e:
-                print("Running VASP encountered problem ", e)
-                print(traceback.format_exc(limit=2))
-                pass
-
-        pid = calc.process.pid
-
-        # Check vaspout
-        try:
-            vaspout_lines = calc._txt_to_handler().readlines()
-        except Exception:
-            vaspout_lines = []
-
-        vaspout_ok = False
-        for line in vaspout_lines:
-            if "LATTICE: reading from stdin" in line:
-                vaspout_ok = True
-                break
-        # Low level kill to prevent any issue with STOPCAR etc.
-        subprocess.run(["kill", "-9", str(pid)])
-
-    print(
-        "Lattice-aware single point calculations finished. Checking output file parsing."
-    )
-    status = None
-    if vaspout_ok:
-        cprint(f"LATTICE support: OK", color="OKGREEN")
-    else:
-        cprint(f"LATTICE support: NEED PATCH", color="WARNING")
-
-    if not vaspout_ok:
-        cprint(
-            (
-                "Your VASP binary does not support inputting LATTICE via stdin. "
-                "A patch is needed if you want to use VaspInteractive for relaxation / MD that require lattice change. \n"
-                "Check the instructions at: https://github.com/ulissigroup/vasp-interactive/blob/main/vasp-build/README.md \n"
-                "In other cases, VaspInteractive should work normally without problem."
-            ),
-            color="WARNING",
-        )
-
-        status = "need_patch"
-    else:
-        cprint("Your VASP is properly patched!", color="OKGREEN")
-        status = "all pass"
-
-    # Output the total status
-    print("#" * 80)
-    print(f"Advanced Test -- lattice change: {status}")
-    print("#" * 80)
-    
-
 
 
 if __name__ == "__main__":
     if not vasp_env_test():
         sys.exit(1)
-    if demo_test():
-        demo_test_extra()
+    demo_test()
